@@ -32,10 +32,15 @@ TLorentzVector tlv2;
 
 int            jetIndex;
 int            leptonIndex;
+int            leptonIndex_Z1;
+int            leptonIndex_Z2;
+int            Zleptontype;
 
 int            nentries   = 0;
 int            maxentries = -1;
 
+float luminosity;
+float m2l_thirdLep;
 
 //------------------------------------------------------------------------------
 // Begin
@@ -54,7 +59,6 @@ void nanoFakes::Begin(TTree*)
 
   if (option.find("2016_noHIPM") != std::string::npos) year_length = 11;
   if (option.find("2016_HIPM")   != std::string::npos) year_length = 9;
-  if (option.find("2022EE")   != std::string::npos) year_length = 6;
 
   year     = option.substr(0,year_length);
   filename = option.erase(0,year_length);
@@ -62,18 +66,16 @@ void nanoFakes::Begin(TTree*)
   printf("     year: %s\n", year.Data());
   printf(" filename: %s\n", filename.Data());
   printf("\n");
-
-  /**
-  if (!filename.Contains("Run20")) {
+  
+  if (!filename.Contains("Run201")) {
 
     baseW            = {fReader, "baseW"};
     Xsec             = {fReader, "Xsec"};
     puWeight         = {fReader, "puWeight"};
     Generator_weight = {fReader, "Generator_weight"};
   }
-  **/
 
-  ismc = (filename.Contains("Run20")) ? false : true;
+  ismc = (filename.Contains("Run201")) ? false : true;
 
   root_output = new TFile("results/" + filename + ".root", "recreate");
 
@@ -112,29 +114,7 @@ void nanoFakes::Begin(TTree*)
     {
       printf(" Reading %s prescales\n\n", year.Data());
 
-      eleLowPtPrescale   =  6.412;  // Ele8
-    //eleLowPtPrescale   = 38.849;  // Ele12
-      eleHighPtPrescale  = 38.906;
-      muonLowPtPrescale  =  8.561;
-      muonHighPtPrescale = 45.781;
-    }
-  else if (year == "2022")
-    {
-      printf(" Reading %s prescales\n\n", year.Data());
-      
-      eleLowPtPrescale   = 0.0;  // Ele8
-      eleHighPtPrescale  = 0.0;
-      muonLowPtPrescale  = 0.0;
-      muonHighPtPrescale = 0.0; 
-    }
-  else if (year == "2022EE")
-    {
-      printf(" Reading %s prescales\n\n", year.Data());  // Temporal lumi for Run2022FG prompt reco data
-
-      eleLowPtPrescale   = 2.864891971;  // Ele8
-      eleHighPtPrescale  = 16.128280724; // Ele23
-      muonLowPtPrescale  = 3.845615262;  // Mu8
-      muonHighPtPrescale = 16.252956481; // Mu17
+      luminosity = 59.74*1000;
     }
 
 
@@ -284,19 +264,9 @@ Bool_t nanoFakes::Process(Long64_t entry)
 
   nentries++;
  
-  channel = (abs(Lepton_pdgId[0]) == 11) ? e : m;
-
-  leptonPtMin  = (channel == e) ?  13 :  10;  // [GeV]
-  leptonEtaMax = (channel == e) ? 2.5 : 2.4;  // [GeV]
-
-  if (Lepton_pt[0]        < leptonPtMin)  return 0;
-  if (fabs(Lepton_eta[0]) > leptonEtaMax) return 0;
-
   event_weight = 1.0;
 
-  unsigned int nLepton = Lepton_pt.GetSize();
-  unsigned int nCleanJet = CleanJet_pt.GetSize();
-  
+
   // Make Z candidate
   //------------------------------------------------------------------------  
   Zlepton1type   = Loose;
@@ -306,9 +276,9 @@ Bool_t nanoFakes::Process(Long64_t entry)
 
   m2l = -999.0;
 
-  if (nLepton >= 2) {
+  if (*nLepton >= 2) {
 
-    for (unsigned int iLep1=0; iLep1<nLepton; iLep1++) {
+    for (unsigned int iLep1=0; iLep1<*nLepton; iLep1++) {
       
       if (Lepton_pt[iLep1] < 25.) continue;
 
@@ -320,9 +290,9 @@ Bool_t nanoFakes::Process(Long64_t entry)
 	Zlepton1idisoW = 1.0;  // Temporary value until put in the trees
       }
 
-      for (unsigned int iLep2=iLep1+1; iLep2<nLepton; iLep2++) {
+      for (unsigned int iLep2=iLep1+1; iLep2<*nLepton; iLep2++) {
 	
-	if (Lepton_pt[iLep2] < 10.) continue;
+	if (Lepton_pt[iLep2] < 5.) continue;
 
 	if (Lepton_pdgId[iLep1] + Lepton_pdgId[iLep2] != 0) continue;
 
@@ -338,11 +308,13 @@ Bool_t nanoFakes::Process(Long64_t entry)
 	  
 	  m2l = inv_mass;
 
-	  leptonIndex = iLep2;
+	  leptonIndex_Z1 = iLep1;
+	  leptonIndex_Z2 = iLep2;
+	  Zleptontype = abs(Lepton_pdgId[iLep1]);
 	  
 	  // Is the second lepton tight?
-	  if ((abs(Lepton_pdgId[iLep2]) == 11 && (int)eleTightWP[iLep2] > 0.5) ||
-	      (abs(Lepton_pdgId[iLep2]) == 13 && (int)muonTightWP[iLep2] > 0.5)) {
+	  if ((abs(Lepton_pdgId[iLep2]) == 11 && eleTightWP[iLep2] > 0.5) ||
+	      (abs(Lepton_pdgId[iLep2]) == 13 && muonTightWP[iLep2] > 0.5)) {
 	    
 	    Zlepton2type   = Tight;
 	    Zlepton2idisoW = 1.0;  // Temporary value until put in the trees
@@ -352,6 +324,7 @@ Bool_t nanoFakes::Process(Long64_t entry)
     }
   }
 
+
   l2tight_weight = Zlepton1idisoW * Zlepton2idisoW;
 
 
@@ -359,37 +332,24 @@ Bool_t nanoFakes::Process(Long64_t entry)
   //----------------------------------------------------------------------------
   bool passTrigger = false;
 
-  //if (ismc) event_weight = (*baseW/1e3) * (*puWeight) * (*Generator_weight);
+  if (ismc) event_weight = (*baseW/1e3) * (*puWeight) * (*Generator_weight);
 
-  if (ismc) event_weight = (*baseW/1e3) * (*Generator_weight);
-  
   if (event_weight > 2.) return kTRUE;  // Remove events with large weight
 
   if (ismc) {
 
-    if (channel == m) {
+    event_weight *= luminosity;
+
+    if (Zleptontype == 13) {      
       
-      (Lepton_pt[0] <= 20.) ? event_weight *= muonLowPtPrescale : event_weight *= muonHighPtPrescale;  // Luminosity in fb-1 from brilcalc
-      
-      if (Lepton_pt[0] <= 20. && *HLT_Mu8_TrkIsoVVL > 0.5) {
-	
-	passTrigger = true;
-	
-      } else if (Lepton_pt[0] > 20. && *HLT_Mu17_TrkIsoVVL > 0.5) {
-	
-	passTrigger = true;
+      if (Lepton_pt[leptonIndex_Z1] >= 25. && *HLT_IsoMu24 > 0.5) {	
+	passTrigger = true;	
       }
     }
 
-    if (channel == e) {
+    if (Zleptontype == 11) {
       
-      (Lepton_pt[0] <= 25.) ? event_weight *= eleLowPtPrescale : event_weight *= eleHighPtPrescale;  // Luminosity in fb-1 from brilcalc
-      
-      if (Lepton_pt[0] <= 25. && *HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30 > 0.5) {
-	
-	passTrigger = true;
-	
-      } else if (Lepton_pt[0] > 25. && *HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30 > 0.5) {
+      if (Lepton_pt[leptonIndex_Z1] > 35. && *HLT_Ele32_WPTight_Gsf > 0.5) {
 	
 	passTrigger = true;
       }
@@ -397,47 +357,66 @@ Bool_t nanoFakes::Process(Long64_t entry)
 
   } else {
 
-    if ((filename.Contains("DoubleMuon") or filename.Contains("SingleMuon")) && channel == m) {
+    if ((filename.Contains("DoubleMuon") or filename.Contains("SingleMuon")) && Zleptontype == 13) {
       
-      if (Lepton_pt[0] <= 20. && *HLT_Mu8_TrkIsoVVL > 0.5) {
-      
+      if (Lepton_pt[leptonIndex_Z1] >= 25. && *HLT_IsoMu24 > 0.5) {
+	
 	passTrigger = true;
 	
-      } else if (Lepton_pt[0] > 20. && *HLT_Mu17_TrkIsoVVL > 0.5) {
-
-	passTrigger = true;
       }
     }
-
-    if ((filename.Contains("SingleEle") or filename.Contains("DoubleEG") or filename.Contains("EGamma")) && channel == e) {
+    if ((filename.Contains("SingleEle") or filename.Contains("DoubleEG") or filename.Contains("EGamma")) && Zleptontype == 11) {
       
-      if (Lepton_pt[0] <= 25. && *HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30 > 0.5) {
+      if (Lepton_pt[leptonIndex_Z1] >= 35. && *HLT_Ele32_WPTight_Gsf > 0.5) {
 	
 	passTrigger = true;
 	
-      } else if (Lepton_pt[0] > 25. && *HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30 > 0.5) {
-	
-	passTrigger = true;
       }
     }
   }
-
-
+  
   // Away jet determination
   //----------------------------------------------------------------------------
-  if (nCleanJet > 0) {
+  if (*nCleanJet > 0) {
 
+    m2l_thirdLep = 0.0;
+    leptonIndex = 99;
     TLorentzVector tlvLepton;
-  
-    tlvLepton.SetPtEtaPhiM(Lepton_pt[0], Lepton_eta[0], Lepton_phi[0], 0);
 
+    if (*nLepton>=3 && Zlepton1type == Tight && Zlepton2type == Tight){
+      
+      bool found = false;
+      for (unsigned int iLep3=0; iLep3<*nLepton; iLep3++) {
+        if (iLep3!=leptonIndex_Z1 && iLep3!=leptonIndex_Z2 && !found){
+          leptonIndex = iLep3;
+          if (abs(Lepton_pdgId[iLep3]) == 11){
+            channel = e;
+          }
+          if (abs(Lepton_pdgId[iLep3]) == 13){
+            channel = m;
+          }
+          found = true;
+        }
+      }
+      tlvLepton.SetPtEtaPhiM(Lepton_pt[leptonIndex], Lepton_eta[leptonIndex], Lepton_phi[leptonIndex], 0);
+      if (Lepton_pdgId[leptonIndex]*Lepton_pdgId[leptonIndex_Z1] < 0){
+        tlv1.SetPtEtaPhiM(Lepton_pt[leptonIndex_Z1], Lepton_eta[leptonIndex_Z1], Lepton_phi[leptonIndex_Z1], 0);
+        m2l_thirdLep = (tlv1+tlvLepton).M();
+      }else{
+        tlv2.SetPtEtaPhiM(Lepton_pt[leptonIndex_Z2], Lepton_eta[leptonIndex_Z2], Lepton_phi[leptonIndex_Z2], 0);
+        m2l_thirdLep = (tlv2+tlvLepton).M();
+      }
+    }else{
+      tlvLepton.SetPtEtaPhiM(Lepton_pt[leptonIndex_Z1], Lepton_eta[leptonIndex_Z1], Lepton_phi[leptonIndex_Z1], 0);
+    }
+  
     for (int i=0; i<njetet; i++) {
     
       jetIndex = -1;
 
       inputJetEt = (channel == e) ? elejetet[i] : muonjetet[i];
     
-      for (unsigned int j=0; j<nCleanJet; j++) {
+      for (unsigned int j=0; j<*nCleanJet; j++) {
       
 	if (CleanJet_pt[j]       < 10.)        continue;
 	if (abs(CleanJet_eta[j]) > 2.5)        continue;
@@ -459,57 +438,70 @@ Bool_t nanoFakes::Process(Long64_t entry)
 
       bool passJets = (jetIndex != -1);
 
+      channel = (abs(Lepton_pdgId[leptonIndex]) == 11) ? e : m;
 
-      // Debug 2016_HIPM - Muons
-      //------------------------------------------------------------------------
-      if ((channel == m) && (nLepton == 1) && passJets && passTrigger) {
+      leptonPtMin  = (channel == e) ?  7 :  5;
+      leptonEtaMax = (channel == e) ? 2.5 : 2.4;
 
-	h_Muon_loose_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
-	h_Muon_loose_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+      if (Lepton_pt[leptonIndex]        < leptonPtMin) return 0;
+      if (fabs(Lepton_eta[leptonIndex]) > leptonEtaMax) return 0;
 
-	if ((int)muonTightWP[0] > 0.5) {
-	  h_Muon_tight_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
-	  h_Muon_tight_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+      if (*nLepton>=3 && Zlepton1type == Tight && Zlepton2type == Tight){
+
+	// Debug 2016_HIPM - Muons
+	//------------------------------------------------------------------------
+	if ((channel == m) && (*nLepton == 3) && passJets && passTrigger) {
+	  
+	  h_Muon_loose_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
+	  h_Muon_loose_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+	  
+	  if (muonTightWP[0] > 0.5) {
+	    h_Muon_tight_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
+	    h_Muon_tight_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+	  }
 	}
-      }
-
-
-      // Debug 2016_HIPM - Electrons
-      //------------------------------------------------------------------------
-      if ((channel == e) && (nLepton == 1) && passJets && passTrigger) {
-
-	h_Ele_loose_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
-	h_Ele_loose_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
-
-	if ((int)eleTightWP[0] > 0.5) {
-	  h_Ele_tight_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
-	  h_Ele_tight_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+	
+	
+	// Debug 2016_HIPM - Electrons
+	//------------------------------------------------------------------------
+	if ((channel == e) && (*nLepton == 3) && passJets && passTrigger) {
+	  
+	  h_Ele_loose_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
+	  h_Ele_loose_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+	  
+	  if (eleTightWP[0] > 0.5) {
+	    h_Ele_tight_met [FR_02_Debug][i][0]->Fill(*PuppiMET_pt, event_weight);
+	    h_Ele_tight_mtw1[FR_02_Debug][i][0]->Fill(*mtw1,        event_weight);
+	  }
 	}
-      }
+	
 
-
-      // QCD region
+      // DY+X region
       //------------------------------------------------------------------------
-      bool passCuts = passTrigger;
+	bool passCuts = passTrigger;
 
-      passCuts &= (nLepton == 1);
-      passCuts &= (*mtw1 < 20.);
-      passCuts &= (*PuppiMET_pt < 20.);
+        passCuts &= (*nLepton == 3);
+        passCuts &= (fabs(m2l - 91.188) < 10.);
+        passCuts &= (m2l_thirdLep>4.0);
+        passCuts &= (*PuppiMET_pt < 20.);
+        passCuts &= (Lepton_pt[leptonIndex_Z1]>20.0);
+        passCuts &= (Lepton_pt[leptonIndex_Z2]>10.0);
 
-      FillLevelHistograms(FR_00_QCD, i, passJets && passCuts);
+	FillLevelHistograms(FR_00_QCD, i, passJets && passCuts, leptonIndex);
 
+      }    
 
       // Z region
       //------------------------------------------------------------------------
-      passCuts = passTrigger;
+      bool passCuts = passTrigger;
 
-      passCuts &= (nLepton > 1);
+      passCuts &= (*nLepton > 1);
       passCuts &= (*PuppiMET_pt < 20.);
       passCuts &= (m2l > 20.);
 
       if (passJets && passCuts) {
 	
-	if (fabs(Zdecayflavour) == 11) {
+	if (fabs(Zleptontype) == 11) {
 	  
 	  h_Ele_loose_m2l   [FR_01_Zpeak][i][0]->Fill(m2l, event_weight);
 	  h_Ele_loose_pt_m2l[FR_01_Zpeak][i][0]->Fill(m2l, tlv1.Pt(), event_weight);
@@ -520,7 +512,7 @@ Bool_t nanoFakes::Process(Long64_t entry)
 	    h_Ele_tight_pt_m2l[FR_01_Zpeak][i][0]->Fill(m2l, tlv1.Pt(), event_weight * l2tight_weight);
 	  }
 	}
-	else if (fabs(Zdecayflavour) == 13) {
+	else if (fabs(Zleptontype) == 13) {
 	  
 	  h_Muon_loose_m2l   [FR_01_Zpeak][i][0]->Fill(m2l, event_weight);
 	  h_Muon_loose_pt_m2l[FR_01_Zpeak][i][0]->Fill(m2l, tlv1.Pt(), event_weight);
@@ -533,19 +525,19 @@ Bool_t nanoFakes::Process(Long64_t entry)
 	}
       }
 
-      FillLevelHistograms(FR_01_Zpeak, i, passJets && passCuts);
+      FillLevelHistograms(FR_01_Zpeak, i, passJets && passCuts, leptonIndex);
     }
   }
-
+  
 
   // Fill prompt rate histograms
   //----------------------------------------------------------------------------
   if ((76. < m2l && 106. > m2l) && filename.Contains("DY") && Zlepton1type == Tight) {
 
-    float Zlep2pt  = Lepton_pt[leptonIndex];
-    float Zlep2eta = fabs(Lepton_eta[leptonIndex]);
+    float Zlep2pt  = Lepton_pt[leptonIndex_Z2];
+    float Zlep2eta = fabs(Lepton_eta[leptonIndex_Z2]);
     
-    if (fabs(Zdecayflavour) == 11) {
+    if (fabs(Zleptontype) == 11) {
     
       h_Ele_loose_pt_eta_PR[PR_00]->Fill(Zlep2pt, Zlep2eta, event_weight);
       h_Ele_loose_pt_PR    [PR_00]->Fill(Zlep2pt, event_weight);
@@ -558,7 +550,7 @@ Bool_t nanoFakes::Process(Long64_t entry)
 	h_Ele_tight_eta_PR   [PR_00]->Fill(Zlep2eta, event_weight);
       }
       
-    } else if (fabs(Zdecayflavour) == 13) {
+    } else if (fabs(Zleptontype) == 13) {
       
       h_Muon_loose_pt_eta_PR[PR_00]->Fill(Zlep2pt, Zlep2eta, event_weight);
       h_Muon_loose_pt_PR    [PR_00]->Fill(Zlep2pt, event_weight);
@@ -607,23 +599,23 @@ void nanoFakes::Terminate()
 //------------------------------------------------------------------------------
 // FillLevelHistograms
 //------------------------------------------------------------------------------
-void nanoFakes::FillLevelHistograms(int icut, int i, bool pass)
+void nanoFakes::FillLevelHistograms(int icut, int i, bool pass, int leptonIndex_true)
 {
   if (!pass) return;
 
-  FillAnalysisHistograms(icut, i);
+  FillAnalysisHistograms(icut, i, leptonIndex_true);
 }
 
 
 //------------------------------------------------------------------------------   
 // FillanalysisHistograms
 //------------------------------------------------------------------------------                 
-void nanoFakes::FillAnalysisHistograms(int icut, int i)
+void nanoFakes::FillAnalysisHistograms(int icut, int i, int leptonIndex_true)
 {
   float btagDown = 0.0;
   float btagUp   = 1.0;
 
-  float lep1eta = fabs(Lepton_eta[0]);
+  float lep1eta = fabs(Lepton_eta[leptonIndex_true]);
 
   for (int btag=0; btag<nbtag; btag++) {
 
@@ -637,62 +629,62 @@ void nanoFakes::FillAnalysisHistograms(int icut, int i)
     else if (btagDirectory == "bveto")
       {
 	btagDown = -10.0;
-	btagUp   = 0.0614;
+	btagUp   = 0.1522;
       }
     else if (btagDirectory == "loose")
       {
-	btagDown = 0.0614;
-	btagUp   = 0.3196;
+	btagDown = 0.1522;
+	btagUp   = 0.4941;
       }
     else if (btagDirectory == "mediumtight")
       {
-	btagDown = 0.3196;
+	btagDown = 0.4941;
 	btagUp   = 10.0;
       }
 
     if (channel == m &&
-	Jet_btagDeepFlavB[Muon_jetIdx[Lepton_muonIdx[0]]] > btagDown &&
-	Jet_btagDeepFlavB[Muon_jetIdx[Lepton_muonIdx[0]]] < btagUp) {
+	Jet_btagDeepB[Muon_jetIdx[Lepton_muonIdx[leptonIndex_true]]] > btagDown &&
+	Jet_btagDeepB[Muon_jetIdx[Lepton_muonIdx[leptonIndex_true]]] < btagUp) {
 
       
       // Loose muons
       //------------------------------------------------------------------------
-      h_Muon_loose_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[0], lep1eta, event_weight);
-      h_Muon_loose_pt_bin    [icut][i][btag]->Fill(Lepton_pt[0], event_weight);
-      h_Muon_loose_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[0]);
+      h_Muon_loose_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], lep1eta, event_weight);
+      h_Muon_loose_pt_bin    [icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], event_weight);
+      h_Muon_loose_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true]);
       h_Muon_loose_eta_bin   [icut][i][btag]->Fill(lep1eta, event_weight);
 
 
       // Tight muons
       //------------------------------------------------------------------------
-      if (muonTightWP[0] > 0.5) {
+      if (muonTightWP[leptonIndex_true] > 0.5) {
 	
-	h_Muon_tight_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[0], lep1eta, event_weight);
-	h_Muon_tight_pt_bin    [icut][i][btag]->Fill(Lepton_pt[0], event_weight);
-	h_Muon_tight_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[0]);
+	h_Muon_tight_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], lep1eta, event_weight);
+	h_Muon_tight_pt_bin    [icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], event_weight);
+	h_Muon_tight_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true]);
 	h_Muon_tight_eta_bin   [icut][i][btag]->Fill(lep1eta, event_weight);
       }
 
     } else if (channel == e &&
-	       Jet_btagDeepFlavB[Electron_jetIdx[Lepton_electronIdx[0]]] > btagDown &&
-	       Jet_btagDeepFlavB[Electron_jetIdx[Lepton_electronIdx[0]]] < btagUp) {
+	       Jet_btagDeepB[Electron_jetIdx[Lepton_electronIdx[leptonIndex_true]]] > btagDown &&
+	       Jet_btagDeepB[Electron_jetIdx[Lepton_electronIdx[leptonIndex_true]]] < btagUp) {
       
       
       // Loose electrons
       //------------------------------------------------------------------------
-      h_Ele_loose_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[0], lep1eta, event_weight);
-      h_Ele_loose_pt_bin    [icut][i][btag]->Fill(Lepton_pt[0], event_weight);
-      h_Ele_loose_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[0]);
+      h_Ele_loose_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], lep1eta, event_weight);
+      h_Ele_loose_pt_bin    [icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], event_weight);
+      h_Ele_loose_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true]);
       h_Ele_loose_eta_bin   [icut][i][btag]->Fill(lep1eta, event_weight);
 
 
       // Tight electrons
       //------------------------------------------------------------------------
-      if ((int)eleTightWP[0] > 0.5) {
+      if (eleTightWP[leptonIndex_true] > 0.5) {
 	
-	h_Ele_tight_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[0], lep1eta, event_weight);
-	h_Ele_tight_pt_bin    [icut][i][btag]->Fill(Lepton_pt[0], event_weight);
-	h_Ele_tight_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[0]);
+	h_Ele_tight_pt_eta_bin[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], lep1eta, event_weight);
+	h_Ele_tight_pt_bin    [icut][i][btag]->Fill(Lepton_pt[leptonIndex_true], event_weight);
+	h_Ele_tight_pt_bin_raw[icut][i][btag]->Fill(Lepton_pt[leptonIndex_true]);
 	h_Ele_tight_eta_bin   [icut][i][btag]->Fill(lep1eta, event_weight);
       }
     }

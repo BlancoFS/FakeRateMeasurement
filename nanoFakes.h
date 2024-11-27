@@ -42,8 +42,8 @@ const int      njetet = 7;
 const Double_t muonjetet[njetet] = {10, 15, 20, 25, 30, 35, 45}; 
 const Double_t elejetet [njetet] = {10, 15, 20, 25, 30, 35, 45}; 
 
-const int      nptbin = 8;
-const Double_t ptbins[nptbin+1] = {10, 15, 20, 25, 30, 35, 40, 45, 50};
+const int      nptbin = 9;
+const Double_t ptbins[nptbin+1] = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50};
 
 const int      netabin = 5;
 const Double_t etabins[netabin+1] = {0, 0.5, 1.0, 1.5, 2.0, 2.5};
@@ -94,11 +94,13 @@ class nanoFakes : public TSelector
   TTree*      fChain = 0;  //!pointer to the analyzed TTree or TChain
 
   void FillAnalysisHistograms(int  icut,
-			      int  i);
+			      int  i,
+			      int leptonIndex_true);
 
   void FillLevelHistograms   (int  icut,
 			      int  i,
-			      bool pass);
+			      bool pass,
+			      int leptonIndex_true);
 
 
   // Fake rate histograms
@@ -168,72 +170,84 @@ class nanoFakes : public TSelector
   TH1D* h_Ele_tight_eta_PR[ncutPR];
 
 
-  // Readers
-  //---------------------------------------------------------------------------- 
-  TTreeReaderValue<Double_t> baseW;
+  // Readers to access the data (delete the ones you do not need)
+  //----------------------------------------------------------------------------
+  TTreeReaderValue<Float_t> baseW;
+  TTreeReaderValue<Float_t> Xsec;
+  TTreeReaderValue<Float_t> puWeight;
   TTreeReaderValue<Float_t> Generator_weight;
-  TTreeReaderArray<Int_t> Lepton_pdgId;
-  TTreeReaderArray<Float_t> Lepton_pt;
-  TTreeReaderArray<Float_t> Lepton_eta;
-  TTreeReaderArray<Float_t> Lepton_phi;
-  TTreeReaderArray<Float_t> Jet_btagDeepFlavB;
 
-  TTreeReaderArray<Int_t> Lepton_muonIdx;
-  TTreeReaderArray<Int_t> Muon_jetIdx;
-  TTreeReaderArray<Int_t> Lepton_electronIdx;
-  TTreeReaderArray<Int_t> Electron_jetIdx;
 
-  //TTreeReaderValue<UInt_t> nCleanJet;
-  TTreeReaderArray<Float_t> CleanJet_pt;
-  TTreeReaderArray<Float_t> CleanJet_eta;
-  TTreeReaderArray<Float_t> CleanJet_phi;
+  // Common variables for 2016, 2017 and 2018
+  //----------------------------------------------------------------------------
+  TTreeReaderValue<UInt_t> nLepton = {fReader, "nLepton"};
+  TTreeReaderArray<Int_t> Lepton_pdgId = {fReader, "Lepton_pdgId"};
+  TTreeReaderArray<Float_t> Lepton_pt = {fReader, "Lepton_pt"};
+  TTreeReaderArray<Float_t> Lepton_eta = {fReader, "Lepton_eta"};
+  TTreeReaderArray<Float_t> Lepton_phi = {fReader, "Lepton_phi"};
 
-  TTreeReaderValue<Double_t> mtw1;
-  TTreeReaderValue<Float_t> PuppiMET_pt;
-  TTreeReaderValue<Double_t> dphilep1jet1;
-  TTreeReaderArray<Float_t> Electron_pfRelIso03_all;
+  TTreeReaderArray<Float_t> Jet_btagDeepB = {fReader, "Jet_btagDeepB"};
+  TTreeReaderArray<Int_t> Lepton_muonIdx = {fReader, "Lepton_muonIdx"};
+  TTreeReaderArray<Int_t> Muon_jetIdx = {fReader, "Muon_jetIdx"};
+  TTreeReaderArray<Int_t> Lepton_electronIdx = {fReader, "Lepton_electronIdx"};
+  TTreeReaderArray<Int_t> Electron_jetIdx = {fReader, "Electron_jetIdx"};
 
-  TTreeReaderValue<Bool_t> HLT_Mu8_TrkIsoVVL;
-  TTreeReaderValue<Bool_t> HLT_Mu17_TrkIsoVVL;
-  TTreeReaderValue<Bool_t> HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30;
-  TTreeReaderValue<Bool_t> HLT_Ele12_CaloIdL_TrackIdL_IsoVL_PFJet30;
-  TTreeReaderValue<Bool_t> HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30;
+  TTreeReaderValue<UInt_t> nCleanJet = {fReader, "nCleanJet"};
+  TTreeReaderArray<Float_t> CleanJet_pt = {fReader, "CleanJet_pt"};
+  TTreeReaderArray<Float_t> CleanJet_eta = {fReader, "CleanJet_eta"};
+  TTreeReaderArray<Float_t> CleanJet_phi = {fReader, "CleanJet_phi"};
+   
+  TTreeReaderValue<Float_t> mtw1 = {fReader, "mtw1"};
+  TTreeReaderValue<Float_t> PuppiMET_pt = {fReader, "PuppiMET_pt"};
+  TTreeReaderValue<Float_t> dphilep1jet1 = {fReader, "dphilep1jet1"};
+  TTreeReaderValue<Float_t> Electron_pfRelIso03_all = {fReader, "Electron_pfRelIso03_all"};
 
-  TTreeReaderArray<Bool_t> muonTightWP;
-  TTreeReaderArray<Bool_t> eleTightWP;
-
-  nanoFakes(TTree* /*tree*/=0) :
-    fReader(),
-    baseW (fReader, "baseW"),
-    Generator_weight (fReader, "Generator_weight"),
-    Lepton_pdgId (fReader, "Lepton_pdgId"),
-    Lepton_pt (fReader, "Lepton_pt"),
-    Lepton_eta (fReader, "Lepton_eta"),
-    Lepton_phi (fReader, "Lepton_phi"),
-    Jet_btagDeepFlavB (fReader, "Jet_btagDeepFlavB"),
-    Lepton_muonIdx (fReader, "Lepton_muonIdx"),
-    Muon_jetIdx (fReader, "Muon_jetIdx"),
-    Lepton_electronIdx (fReader, "Lepton_electronIdx"),
-    Electron_jetIdx (fReader, "Electron_jetIdx"),
-    //nCleanJet (fReader, "nCleanJet"),
-    CleanJet_pt (fReader, "CleanJet_pt"),
-    CleanJet_eta (fReader, "CleanJet_eta"),
-    CleanJet_phi (fReader, "CleanJet_phi"),
-    mtw1 (fReader, "mtw1"),
-    PuppiMET_pt (fReader, "PuppiMET_pt"),
-    dphilep1jet1 (fReader, "dphilep1jet1"),
-    Electron_pfRelIso03_all (fReader, "Electron_pfRelIso03_all"),
-    HLT_Mu8_TrkIsoVVL (fReader, "HLT_Mu8_TrkIsoVVL"),
-    HLT_Mu17_TrkIsoVVL (fReader, "HLT_Mu17_TrkIsoVVL"),
-    HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30 (fReader, "HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30"),
-    HLT_Ele12_CaloIdL_TrackIdL_IsoVL_PFJet30 (fReader, "HLT_Ele12_CaloIdL_TrackIdL_IsoVL_PFJet30"),
-    HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30 (fReader, "HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30"),
-    muonTightWP (fReader, "Lepton_isTightMuon_cut_Tight_HWWW"),
-    eleTightWP (fReader, "Lepton_isTightElectron_mvaWinter22V2Iso_WP90")
-  {
-    Reset();
-  };
+  TTreeReaderValue<Bool_t> HLT_IsoMu24 = {fReader, "HLT_IsoMu24"};
+  TTreeReaderValue<Bool_t> HLT_Ele32_WPTight_Gsf = {fReader, "HLT_Ele32_WPTight_Gsf"};
   
+  TTreeReaderValue<Bool_t> HLT_Mu8_TrkIsoVVL = {fReader, "HLT_Mu8_TrkIsoVVL"};
+  TTreeReaderValue<Bool_t> HLT_Mu17_TrkIsoVVL = {fReader, "HLT_Mu17_TrkIsoVVL"};
+  TTreeReaderValue<Bool_t> HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30 = {fReader, "HLT_Ele8_CaloIdL_TrackIdL_IsoVL_PFJet30"};
+  TTreeReaderValue<Bool_t> HLT_Ele12_CaloIdL_TrackIdL_IsoVL_PFJet30 = {fReader, "HLT_Ele12_CaloIdL_TrackIdL_IsoVL_PFJet30"};
+  TTreeReaderValue<Bool_t> HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30 = {fReader, "HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30"};
+
+
+  // Different electron and muon working points
+  //----------------------------------------------------------------------------
+  // 2016 (pair 1)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight80x_tthmva_80"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90"};
+
+  // 2016 (pair 2)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight80x"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_tthmva_70"};
+
+  // 2016 (pair 3)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight80x_tthmva_80"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_SS_tthmva_70"};
+
+  // 2016 (pair 4)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight80x"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_SS"};
+
+  // 2017 and 2018 (pair 1)
+  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_Loose_HZZ"};
+  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_looseElectron_tthMVA"};
+
+  // 2017 and 2018 (pair 2)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight_HWWW"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_tthmva_70"};
+
+  // 2017 and 2018 (pair 3)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight_HWWW_tthmva_80"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_SS_tthmva_70"};
+
+  // 2017 and 2018 (pair 4)
+  //  TTreeReaderArray<Int_t> muonTightWP = {fReader, "Lepton_isTightMuon_cut_Tight_HWWW"};
+  //  TTreeReaderArray<Int_t> eleTightWP  = {fReader, "Lepton_isTightElectron_mvaFall17V2Iso_WP90_SS"};
+
+
+  nanoFakes(TTree * /*tree*/ =0) { }
   virtual ~nanoFakes() { }
   virtual Int_t   Version() const { return 2; }
   virtual void    Begin(TTree *tree);
@@ -248,8 +262,6 @@ class nanoFakes : public TSelector
   virtual TList  *GetOutputList() const { return fOutput; }
   virtual void    SlaveTerminate();
   virtual void    Terminate();
-
-  void Reset();  ///// new
 
   ClassDef(nanoFakes,0);
 };
@@ -273,10 +285,7 @@ void nanoFakes::Init(TTree *tree)
   
   fReader.SetTree(tree);
 }
-void nanoFakes::Reset()
-{
-  // Reset the data members to theit initial value                                                                                                                                                                                                                            
-}
+
 
 //------------------------------------------------------------------------------
 // Notify

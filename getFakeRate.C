@@ -6,22 +6,18 @@ const Float_t muojetarray[njetet] = {10, 15, 20, 25, 30, 35, 45};
 const Float_t elejetarray[njetet] = {10, 15, 20, 25, 30, 35, 45};
 const Float_t colors     [njetet] = {kRed, kRed+1, kRed+2, kRed+3, kRed+4, kRed+5, kRed+6};
 
-const Float_t year_lumi[6] = {
+const Float_t year_lumi[4] = {
   19.5,  // 2016_HIPM
   17.0,  // 2016_noHIPM
   41.5,  // 2017
-  59.7,  // 2018
-  0.0    // 2022 Not yet
-  21.1   // 2022EE Without Run2022E, only 2022FG PromptReco
+  59.7   // 2018
 };
 
-const TString year_name[6] = {
+const TString year_name[4] = {
   "2016_HIPM",
   "2016_noHIPM",
   "2017",
-  "2018",
-  "2022",
-  "2022EE"
+  "2018"
 };
 
 
@@ -33,13 +29,13 @@ Bool_t  debug        = false;
 Bool_t  debugWeights = false;
 Bool_t  setgrid      = true;
 Bool_t  Wsubtraction = true;
-Bool_t  Zsubtraction = true;
+Bool_t  Zsubtraction = false;
 
 Bool_t  performPromptRate       = true;
 Bool_t  performElectronFakeRate = true;
 Bool_t  performMuonFakeRate     = true;
 Bool_t  performAllJetFakeRate   = false;
-Bool_t  performDataMC           = false;
+Bool_t  performDataMC           = true;
 
 TFile*  dataFR;
 TFile*  wjetsFR;
@@ -56,7 +52,6 @@ TString muon_wp;
 TString ele_wp;
 
 TString btagdir = "";
-
 
 // Functions
 //------------------------------------------------------------------------------
@@ -143,10 +138,9 @@ void getFakeRate(TString the_year      = "2016_HIPM",
   if      (the_year.Contains("noHIPM")) year_index = 1;
   else if (the_year.Contains("HIPM"))   year_index = 0;
   else if (the_year.Contains("2017"))   year_index = 2;
-  else if (the_year.Contains("2018"))   year_index = 3;
-  else if (the_year.Contains("2022"))   year_index = 4;
-  else if (the_year.Contains("2022EE"))   year_index = 5;
-  else {
+  else if (the_year.Contains("2018")){   
+    year_index = 3;
+  }else {
     printf("\n Wrong year format\n");
     return;
   }
@@ -572,11 +566,20 @@ Float_t GetLepScale(TString flavour,
   TH1D* h_zjets = (TH1D*)zjetsFR->Get(btagdir + "FR/01_Zpeak/h_" + flavour + "_" + loose_tight + "_" + suffix);
   TH1D* h_wjets = (TH1D*)wjetsFR->Get(btagdir + "FR/01_Zpeak/h_" + flavour + "_" + loose_tight + "_" + suffix);
 
-
   // Get the ratio
   //----------------------------------------------------------------------------
   if (h_zjets->Integral() > 0.) ratio = h_data->Integral() / h_zjets->Integral();
+  //if (!flavour.EqualTo("Muon") && h_zjets->Integral() > 0.){
+  if ( h_zjets->Integral() > 0.){
+    TH1D* h_zjets_2 = (TH1D*)h_zjets->Clone("MyCustomTH1_ZPeak");
+    TH1D* h_data_2 = (TH1D*)h_data->Clone("MyCustomTH1_DATA");
 
+    h_zjets_2->GetXaxis()->SetRangeUser(85., 95.);
+    h_data_2->GetXaxis()->SetRangeUser(85., 95.);
+
+    ratio = h_data_2->Integral() / h_zjets_2->Integral();
+  }
+  
 
   // Rebin histograms and prepare canvas
   //----------------------------------------------------------------------------
@@ -589,7 +592,7 @@ Float_t GetLepScale(TString flavour,
   TCanvas* canvas = new TCanvas(title + " " + variable, title + " " + variable);
 
 
-  // Set xtitle and ytitle
+ // Set xtitle and ytitle
   //----------------------------------------------------------------------------
   TString ytitle = (flavour.EqualTo("Muon")) ? "muons" : "electrons";
 
@@ -625,10 +628,13 @@ Float_t GetLepScale(TString flavour,
   h_zjets->SetXTitle(xtitle);
   h_zjets->SetYTitle(ytitle);
 
-  h_zjets->GetXaxis()->SetRangeUser(50., 130.);
+  h_zjets->GetXaxis()->SetRangeUser(70., 110.);
+    
   h_zjets->GetXaxis()->SetTitleOffset(1.5);
-  h_zjets->GetYaxis()->SetTitleOffset(1.8);
+  h_zjets->GetYaxis()->SetTitleOffset(1.8);  
 
+  h_zjets->SetMaximum(2.3*h_data->GetMaximum());
+  //h_zjets->SetMaximum(2.3*h_zjets->GetMaximum());
 
   // Draw
   //----------------------------------------------------------------------------
